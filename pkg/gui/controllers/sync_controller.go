@@ -87,6 +87,19 @@ func (self *SyncController) branchCheckedOut(f func(*models.Branch) error) func(
 }
 
 func (self *SyncController) push(currentBranch *models.Branch) error {
+	mainBranches := self.c.UserConfig().Git.MainBranches
+	for _, branch := range mainBranches {
+		if currentBranch.Name == branch {
+			self.c.Confirm(types.ConfirmOpts{
+				Title:  self.c.Tr.MainBranchPush,
+				Prompt: self.mainBranchPushPrompt(),
+				HandleConfirm: func() error {
+					return self.pushAux(currentBranch, pushOpts{})
+				},
+			})
+			return nil
+		}
+	}
 	// if we are behind our upstream branch we'll ask if the user wants to force push
 	if currentBranch.IsTrackingRemote() {
 		opts := pushOpts{remoteBranchStoredLocally: currentBranch.RemoteBranchStoredLocally()}
@@ -230,6 +243,16 @@ func (self *SyncController) pushAux(currentBranch *models.Branch, opts pushOpts)
 		}
 		return self.c.Refresh(types.RefreshOptions{Mode: types.ASYNC})
 	})
+}
+
+func (self *SyncController) mainBranchPushPrompt() string {
+	return utils.ResolvePlaceholderString(
+		self.c.Tr.MainBranchPushPrompt,
+		map[string]string{
+			"cancelKey":  self.c.UserConfig().Keybinding.Universal.Return,
+			"confirmKey": self.c.UserConfig().Keybinding.Universal.Confirm,
+		},
+	)
 }
 
 func (self *SyncController) requestToForcePush(currentBranch *models.Branch, opts pushOpts) error {
